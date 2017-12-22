@@ -4,18 +4,47 @@ import logging
 import traceback
 import sqlite3
 
-DB_ERR = object()
+DB_ERR = type('DBErrCls', (object,), {'__bool__': lambda self: False})()
 
 
 class PlayerEntry(object):
-    __slots__ = ['idx', 'title', 'path', 'player_config', 'player_type']
+    __slots__ = ['comic_id', 'idx', 'title', 'path', 'config_str', 'player_type']
 
     def __init__(self):
+        self.comic_id = None
         self.idx = None
         self.title = None
         self.path = None
-        self.player_config = None
+        self.config_str = None
         self.player_type = None
+
+    @staticmethod
+    def table_sql():
+        return '''create table video(
+        video_id integer primary key autoincrement,
+        comic_id int not null,
+        idx varchar(15) not null,
+        title varchar(63) not null,
+        path varchar(63) not null,
+        config_str varchar(1023) not null,
+        player_type varchar(31) not null
+        )'''
+
+    @staticmethod
+    def save_sql():
+        return '''insert into video(comic_id, idx, title, path, config_str, player_type) values (?,?,?,?,?,?)'''
+
+    @staticmethod
+    def query_sql():
+        return '''select title from video where path=?'''
+
+    @staticmethod
+    def update_sql():
+        return '''update video set config_str=? where path=?'''
+
+    @staticmethod
+    def table_name():
+        return 'video'
 
     def __repr__(self):
         return "PlayerEntry({})".format(
@@ -30,11 +59,40 @@ class ComicEntry(object):
         self.page_path = None
         self.players = {}
         self.name = None
-        self.score = None
-        self.introduce = None
+        self.score = 0
+        self.introduce = ''
         self.cover = None
         self.tag = None
         self.category = None
+
+    @staticmethod
+    def table_sql():
+        return '''create table comic(
+        comic_id int primary key,
+        page_path varchar(63) not null,
+        name varchar(63) not null,
+        score int default 0,
+        introduce varchar(255) not null,
+        cover varchar(255) not null,
+        tag varchar(31) not null,
+        category char(8) not null
+        )'''
+
+    @staticmethod
+    def save_sql():
+        return '''insert into comic values (?,?,?,?,?,?,?,?)'''
+
+    @staticmethod
+    def query_sql():
+        return '''select name from comic where comic_id=?'''
+
+    @staticmethod
+    def update_sql():
+        return '''update comic set page_path=?, name=?, score=?,introduce=?, cover=? where comic_id=?'''
+
+    @staticmethod
+    def table_name():
+        return 'comic'
 
     def __repr__(self):
         return "ComicEntry({})".format(
@@ -59,7 +117,7 @@ class ConnWrapper(object):
         return True
 
 
-class IKanFanDB(object):
+class SqliteWrapper(object):
     def __init__(self, db_file):
         self._db_file = db_file
 
@@ -108,6 +166,12 @@ class IKanFanDB(object):
                 ret.append(self.parse(row, cursor.description))
         return ret
 
+    def get_tables(self):
+        ret = self.query('select name from sqlite_master where type=\'table\' order by name')
+        if ret != DB_ERR:
+            return [item['name'] for item in ret]
+        raise RuntimeError('获取数据库表失败')
+
     @staticmethod
     def parse(row, description):
         fields = [item[0] for item in description]
@@ -117,9 +181,65 @@ class IKanFanDB(object):
         return ret
 
 
+class IKanFanDB(SqliteWrapper):
+    def __init__(self, db_file):
+        super(IKanFanDB, self).__init__(db_file)
+        self.init_database()
+
+    def save_comic(self, entry):
+        ret = self.get(ComicEntry.query_sql(), entry.comic_id)
+        if ret is not DB_ERR and ret:
+            print self.update(ComicEntry.update_sql(), entry.page_path, entry.name, entry.score,
+                              entry.introduce, entry.cover, entry.comic_id)
+        else:
+            print self.insert(
+                ComicEntry.save_sql(), entry.comic_id, entry.page_path, entry.name,
+                entry.score, entry.introduce, entry.cover, entry.tag, entry.category)
+
+    def save_video(self, entry):
+        ret = self.get(PlayerEntry.query_sql(), entry.path)
+        if ret is not DB_ERR and ret:
+            print self.update(PlayerEntry.update_sql(), entry.config_str, entry.path)
+        else:
+            print self.insert(
+                PlayerEntry.save_sql(), entry.comic_id, entry.idx, entry.title,
+                entry.path, entry.config_str, entry.player_type)
+
+    def init_database(self):
+        tbs = self.get_tables()
+        self._create_table(PlayerEntry, tbs)
+        self._create_table(ComicEntry, tbs)
+
+    def _create_table(self, cls, existed_tables):
+        if cls.table_name() not in existed_tables:
+            ret = self.update(cls.table_sql())
+            if ret == DB_ERR:
+                raise RuntimeError('创建表 %s 失败' % cls.table_name())
+
+
 if __name__ == '__main__':
+    # db = SqliteWrapper('/tmp/data.db')
+    # print db.get_tables()
+    # print db.query('select name from sqlitemaster where ')
+    # print db.update('create table test(id integer primary key autoincrement, name char(3))')
+    # for i in range(10):
+    #     print db.insert('insert into test (name) values(?)', str(i))
+    # print db.query('select * from test')
     db = IKanFanDB('/tmp/data.db')
-    print db.update('create table test(id integer primary key autoincrement, name char(3))')
-    for i in range(10):
-        print db.insert('insert into test (name) values(?)', str(i))
-    print db.query('select * from test')
+    en = ComicEntry()
+    en.comic_id = 99
+    en.cover = 'cover'
+    en.score = 10
+    en.page_path = '/move/99.html'
+    en.category = 'hot blood'
+    en.name = 'seven dragon ball'
+    en.tag = '200'
+    db.save_comic(en)
+    en2 = PlayerEntry()
+    en2.comic_id = en.comic_id
+    en2.config_str = 'lalalal'
+    en2.player_type = '233'
+    en2.idx = '10'
+    en2.path = '666'
+    en2.title = u'快来看呀'
+    db.save_video(en2)

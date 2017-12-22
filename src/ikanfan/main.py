@@ -73,6 +73,7 @@ class IKanFanCrawler(object):
                 player_entry.title = a['title']
                 player_entry.idx = a.text
                 player_entry.player_type = player_name
+                player_entry.comic_id = entry.comic_id
                 entries.append(player_entry)
             entry.players[player_name] = entries
 
@@ -84,7 +85,7 @@ class IKanFanCrawler(object):
     def get_play_config(self, player_entry):
         h = self._get(HOST + player_entry.path)
         play_cfg_div = h.find('div', {'class': 'fl playerbox iframe'})
-        player_entry.player_config = play_cfg_div.script.text
+        player_entry.config_str = play_cfg_div.script.text
 
     def _get(self, url):
         logging.warning('crawl %s', url)
