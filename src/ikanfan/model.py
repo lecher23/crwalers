@@ -10,6 +10,7 @@ class PlayerEntry(object):
         self.comic_id = None
         self.idx = None
         self.title = None
+        self.path = None
         self.player_config = None
         self.player_type = None
 
@@ -18,7 +19,7 @@ class ComicEntry(object):
     def __init__(self):
         self.comic_id = None
         self.page_path = None
-        self.player_list = {}
+        self.players = {}
         self.name = None
         self.score = None
         self.introduce = None

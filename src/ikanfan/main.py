@@ -46,6 +46,22 @@ class IKanFanCrawler(object):
             logging.warning('get comic %s done.', entry.name)
             self.comics.append(entry)
 
+    def get_video_list(self, entry):
+        h = self._get(HOST + entry.page_path)
+        for div in h.find_all('div', {'class': 'd-play-box'}):
+            player_name = div['id']
+            logging.warning('get player list for %s', player_name)
+            a_list_div = div.find('div', {'class': 'd-player-list clearfix looplist'})
+            entries = []
+            for a in a_list_div.children:
+                player_entry = PlayerEntry()
+                player_entry.path = a['href']
+                player_entry.title = a['title']
+                player_entry.idx = a.text
+                player_entry.player_type = player_name
+                entries.append(player_entry)
+            entry.players[player_name] = entries
+
     def run(self):
         category = self.get_category()
         for name, path in category.items():
