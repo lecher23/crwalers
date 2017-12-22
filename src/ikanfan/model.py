@@ -1,6 +1,7 @@
 # coding: utf-8
 
-
+import logging
+import traceback
 import sqlite3
 
 
@@ -16,12 +17,14 @@ class PlayerEntry(object):
 class ComicEntry(object):
     def __init__(self):
         self.comic_id = None
+        self.page_path = None
         self.player_list = {}
-        self.title = None
+        self.name = None
         self.score = None
         self.introduce = None
         self.cover = None
         self.tag = None
+        self.category = None
 
 
 class ConnWrapper(object):
@@ -37,6 +40,6 @@ class ConnWrapper(object):
         if exc_type is None:
             self._conn.commit()
         else:
-            pass
+            logging.warning('run sql failed. %s -> %s', exc_val, traceback.extract_tb(exc_tb))
         self._conn.close()
         return True
