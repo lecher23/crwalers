@@ -195,6 +195,10 @@ class IKanFanDB(SqliteWrapper):
             print self.insert(
                 ComicEntry.save_sql(), entry.comic_id, entry.page_path, entry.name,
                 entry.score, entry.introduce, entry.cover, entry.tag, entry.category)
+        for player_name, video_list in entry.players.items():
+            logging.warning('save video for %s', player_name)
+            for video in video_list:
+                self.save_video(video)
 
     def save_video(self, entry):
         ret = self.get(PlayerEntry.query_sql(), entry.path)
