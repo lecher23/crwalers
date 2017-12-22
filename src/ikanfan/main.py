@@ -14,13 +14,21 @@ HEADERS = {
 
 
 class IKanFanCrawler(object):
+    PAGE_WANTED = 10
+
     def __init__(self):
         self.comics = []
         self.session = requests.session()
 
-    def _get(self, url):
-        r = self.session.get(url, headers=HEADERS)
-        return BeautifulSoup(r.content, 'html5lib')
+    def run(self):
+        category_list = self.get_category()
+        for category_name, path in category_list.items():
+            for i in range(self.PAGE_WANTED):
+                comics = self.get_comic_list(category_name, path, i)
+                for comic in comics:
+                    self.get_video_list(comic)
+                    self.process_player_param(comic)
+                self.comics.extend(comics)
 
     def get_category(self):
         h = self._get(HOST)
@@ -32,9 +40,13 @@ class IKanFanCrawler(object):
             category[a.text] = a['href']
         return category
 
-    def get_comic_list(self, category, path):
+    def get_comic_list(self, category, path, page_idx):
+        if page_idx:
+            tmp = path.rfind('.')
+            path = path[:tmp] + str(page_idx + 1) + path[tmp:]
         h = self._get(HOST + path)
         comics_div = h.find('div', {'id': 'contents'})
+        entries = []
         for a in comics_div.children:
             entry = ComicEntry()
             entry.comic_id = a['data-id']
@@ -44,11 +56,13 @@ class IKanFanCrawler(object):
             entry.tag = a.p.text
             entry.category = category
             logging.warning('get comic %s done.', entry.name)
-            self.comics.append(entry)
+            entries.append(entry)
+        return entries
 
     def get_video_list(self, entry):
         h = self._get(HOST + entry.page_path)
-        for div in h.find_all('div', {'class': 'd-play-box'}):
+        list_div = h.find('div', {'id': 'playlist'})
+        for div in list_div.find_all('div', {'class': 'd-play-box'}):
             player_name = div['id']
             logging.warning('get player list for %s', player_name)
             a_list_div = div.find('div', {'class': 'd-player-list clearfix looplist'})
@@ -62,9 +76,22 @@ class IKanFanCrawler(object):
                 entries.append(player_entry)
             entry.players[player_name] = entries
 
-    def run(self):
-        category = self.get_category()
-        for name, path in category.items():
-            url = HOST + path
-            logging.warning('crawl %s: %s', name, url)
-            pass
+    def process_player_param(self, entry):
+        for player_entries in entry.players.values():
+            for player_entry in player_entries:
+                self.get_play_config(player_entry)
+
+    def get_play_config(self, player_entry):
+        h = self._get(HOST + player_entry.path)
+        play_cfg_div = h.find('div', {'class': 'fl playerbox iframe'})
+        player_entry.player_config = play_cfg_div.script.text
+
+    def _get(self, url):
+        logging.warning('crawl %s', url)
+        r = self.session.get(url, headers=HEADERS)
+        return BeautifulSoup(r.content, 'html5lib')
+
+
+if __name__ == "__main__":
+    tool = IKanFanCrawler()
+    tool.run()

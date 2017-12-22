@@ -6,16 +6,23 @@ import sqlite3
 
 
 class PlayerEntry(object):
+    __slots__ = ['idx', 'title', 'path', 'player_config', 'player_type']
+
     def __init__(self):
-        self.comic_id = None
         self.idx = None
         self.title = None
         self.path = None
         self.player_config = None
         self.player_type = None
 
+    def __repr__(self):
+        return "PlayerEntry({})".format(
+            ','.join(['%r=%r' % (item, getattr(self, item, '')) for item in self.__slots__]))
+
 
 class ComicEntry(object):
+    __slots__ = ['comic_id', 'page_path', 'players', 'name', 'score', 'introduce', 'cover', 'tag', 'category']
+
     def __init__(self):
         self.comic_id = None
         self.page_path = None
@@ -26,6 +33,10 @@ class ComicEntry(object):
         self.cover = None
         self.tag = None
         self.category = None
+
+    def __repr__(self):
+        return "ComicEntry({})".format(
+            ','.join(['%r=%r' % (item, getattr(self, item)) for item in self.__slots__]))
 
 
 class ConnWrapper(object):
