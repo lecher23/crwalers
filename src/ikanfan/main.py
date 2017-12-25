@@ -1,6 +1,7 @@
 # coding: utf-8
 
-import re
+import os
+import pickle
 import json
 import random
 import logging
@@ -24,20 +25,35 @@ class IKanFanCrawler(object):
         self.comics = []
         self.session = requests.session()
         self.db = IKanFanDB('data/ikanfan.db')
+        self.processed = set()
+        self._progress_file = 'data/progress.txt'
 
     def run(self):
+        if os.path.exists(self._progress_file):
+            with open(self._progress_file, 'rb') as f:
+                self.processed = pickle.loads(f.read())
         category_list = self.get_category()
         for category_name, path in category_list.items():
             for i in range(self.PAGE_WANTED):
+                unified_tag = '{}-{}'.format(category_name, i)
+                if unified_tag in self.processed:
+                    logging.warning('%s processed, jump!', unified_tag)
+                    continue
                 comics, path = self.get_comic_list(category_name, path)
                 for comic in comics:
-                    self.get_comic_introduce(comic)
-                    self.get_video_list(comic)
-                    self.process_player_param(comic)
-                    self.db.save_comic(comic)
-                # self.comics.extend(comics)
+                    try:
+                        self.get_comic_introduce(comic)
+                        self.get_video_list(comic)
+                        self.process_player_param(comic)
+                    except:
+                        logging.warning('get comic info: %s failed.', comic.comic_id)
+                    else:
+                        self.db.save_comic(comic)
+                        self.processed.add(unified_tag)
                 if not path:
                     break
+        with open(self._progress_file, 'wb') as f:
+            f.write(pickle.dumps(self.processed))
 
     def get_category(self):
         h = self._get(HOST)
@@ -50,31 +66,34 @@ class IKanFanCrawler(object):
         return category
 
     def get_comic_list(self, category, path):
-        h = self._get(HOST + path)
-        comics_div = h.find('div', {'id': 'contents'})
         entries = []
-        for a in comics_div.children:
-            entry = ComicEntry()
-            entry.comic_id = a['data-id']
-            entry.page_path = a['href']
-            entry.name = a['title']
-            entry.cover = a.div.img['data-original']
-            entry.tag = a.p.text
-            entry.category = category
-            logging.warning('get comic %s done.', entry.name)
-            entries.append(entry)
-        page_ul = h.find('ul', {'class': 'pagination'})
         next_path = False
-        for li in page_ul.find_all('li'):
-            if 'active' in li.get('class', []):
-                next_path = True
-                continue
-            if next_path:
-                a = getattr(li, 'a', None)
-                next_path = None
-                if a and a.text.isdigit():
-                    next_path = li.a['href']
-                break
+        try:
+            h = self._get(HOST + path)
+            comics_div = h.find('div', {'id': 'contents'})
+            for a in comics_div.children:
+                entry = ComicEntry()
+                entry.comic_id = a['data-id']
+                entry.page_path = a['href']
+                entry.name = a['title']
+                entry.cover = a.div.img['data-original']
+                entry.tag = a.p.text
+                entry.category = category
+                logging.warning('get comic %s done.', entry.name)
+                entries.append(entry)
+            page_ul = h.find('ul', {'class': 'pagination'})
+            for li in page_ul.find_all('li'):
+                if 'active' in li.get('class', []):
+                    next_path = True
+                    continue
+                if next_path:
+                    a = getattr(li, 'a', None)
+                    next_path = None
+                    if a and a.text.isdigit():
+                        next_path = li.a['href']
+                    break
+        except:
+            logging.warning('get comic list from %s with category %s failed', path, category)
         return entries, next_path
 
     def get_comic_introduce(self, entry):

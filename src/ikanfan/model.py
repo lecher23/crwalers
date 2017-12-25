@@ -4,7 +4,7 @@ import logging
 import traceback
 import sqlite3
 
-DB_ERR = type('DBErrCls', (object,), {'__bool__': lambda self: False})()
+DB_ERR = type('DBErrCls', (object,), {'__nonzero__': lambda self: False})()
 
 
 class PlayerEntry(object):
@@ -188,7 +188,7 @@ class IKanFanDB(SqliteWrapper):
 
     def save_comic(self, entry):
         ret = self.get(ComicEntry.query_sql(), entry.comic_id)
-        if ret is not DB_ERR and ret:
+        if ret:
             print self.update(ComicEntry.update_sql(), entry.page_path, entry.name, entry.score,
                               entry.introduce, entry.cover, entry.comic_id)
         else:
@@ -202,7 +202,7 @@ class IKanFanDB(SqliteWrapper):
 
     def save_video(self, entry):
         ret = self.get(PlayerEntry.query_sql(), entry.path)
-        if ret is not DB_ERR and ret:
+        if ret:
             print self.update(PlayerEntry.update_sql(), entry.config_str, entry.path)
         else:
             print self.insert(
