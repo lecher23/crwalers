@@ -1,5 +1,6 @@
 # coding: utf-8
 
+import threading
 import logging
 import traceback
 import sqlite3
@@ -185,29 +186,36 @@ class IKanFanDB(SqliteWrapper):
     def __init__(self, db_file):
         super(IKanFanDB, self).__init__(db_file)
         self.init_database()
+        self._lock = threading.Lock()
 
     def save_comic(self, entry):
-        ret = self.get(ComicEntry.query_sql(), entry.comic_id)
-        if ret:
-            print self.update(ComicEntry.update_sql(), entry.page_path, entry.name, entry.score,
-                              entry.introduce, entry.cover, entry.comic_id)
-        else:
-            print self.insert(
-                ComicEntry.save_sql(), entry.comic_id, entry.page_path, entry.name,
-                entry.score, entry.introduce, entry.cover, entry.tag, entry.category)
-        for player_name, video_list in entry.players.items():
-            logging.warning('save video for %s', player_name)
-            for video in video_list:
-                self.save_video(video)
+        logging.info('save comic %s info.', entry.comic_id)
+        with self._lock:
+            ret = self.get(ComicEntry.query_sql(), entry.comic_id)
+            if ret:
+                db_ret = self.update(ComicEntry.update_sql(), entry.page_path, entry.name, entry.score,
+                                     entry.introduce, entry.cover, entry.comic_id)
+                logging.info('update comic %s: %s', entry.comic_id, db_ret)
+            else:
+                db_ret = self.insert(
+                    ComicEntry.save_sql(), entry.comic_id, entry.page_path, entry.name,
+                    entry.score, entry.introduce, entry.cover, entry.tag, entry.category)
+                logging.info('add comic %s: %s', entry.comic_id, db_ret)
+            for player_name, video_list in entry.players.items():
+                logging.info('save video for %s', player_name)
+                for video in video_list:
+                    self.save_video(video)
 
     def save_video(self, entry):
         ret = self.get(PlayerEntry.query_sql(), entry.path)
         if ret:
-            print self.update(PlayerEntry.update_sql(), entry.config_str, entry.path)
+            db_ret = self.update(PlayerEntry.update_sql(), entry.config_str, entry.path)
+            logging.info('update video %s: %s', entry.path, db_ret)
         else:
-            print self.insert(
+            db_ret = self.insert(
                 PlayerEntry.save_sql(), entry.comic_id, entry.idx, entry.title,
                 entry.path, entry.config_str, entry.player_type)
+            logging.info('add video %s: %s', entry.path, db_ret)
 
     def init_database(self):
         tbs = self.get_tables()

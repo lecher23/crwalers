@@ -6,8 +6,10 @@ import json
 import random
 import logging
 import requests
+import threading
 from bs4 import BeautifulSoup
 from model import ComicEntry, PlayerEntry, IKanFanDB
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 HOST = "http://www.ikanfan.com"
 INFO_URL = "http://www.ikanfan.com/index.php?s=home-search-pop&q={}&timestamp={}"
@@ -18,6 +20,18 @@ HEADERS = {
 }
 
 
+def init_logging_config(log_path):
+    from logging import root
+    root.handlers = []
+    logging.basicConfig(
+        filename=log_path,
+        filemode='w',
+        format='%(asctime)s[%(levelname)s][%(filename)s:%(lineno)d]<%(thread)d>:%(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S',
+        level=logging.INFO
+    )
+
+
 class IKanFanCrawler(object):
     PAGE_WANTED = 10
 
@@ -25,38 +39,47 @@ class IKanFanCrawler(object):
         self.comics = []
         self.session = requests.session()
         self.db = IKanFanDB('data/ikanfan.db')
-        self.processed = set()
+        self._processed = set()
+        self._lock = threading.Lock()
         self._progress_file = 'data/progress.txt'
 
     def run(self):
         if os.path.exists(self._progress_file):
             with open(self._progress_file, 'rb') as f:
-                self.processed = pickle.loads(f.read())
+                self._processed = pickle.loads(f.read())
         category_list = self.get_category()
-        for category_name, path in category_list.items():
-            self.do_category_task(category_name, path)
+        thread_pool = ThreadPoolExecutor(len(category_list))
+        futures = [thread_pool.submit(
+            self.do_category_task, category_name, path) for category_name, path in category_list.items()]
+        results = [r.result() for r in as_completed(futures)]
+        logging.info(results)
         with open(self._progress_file, 'wb') as f:
-            f.write(pickle.dumps(self.processed))
+            f.write(pickle.dumps(self._processed))
 
     def do_category_task(self, category_name, path):
+        logging.info('start task: %s(%s)', category_name, path)
         page_processed = 0
+        task_session = requests.session()
         while page_processed < self.PAGE_WANTED and path:
-            unified_tag = '{}-{}'.format(category_name, path)
-            if unified_tag in self.processed:
+            unified_tag = '{}-{}'.format(category_name.encode('utf-8'), path)
+            if unified_tag in self._processed:
                 logging.warning('%s processed, jump!', unified_tag)
                 continue
-            comics, path = self.get_comic_list(category_name, path)
+            comics, path = self.get_comic_list(category_name, path, task_session)
             for comic in comics:
                 try:
-                    self.get_comic_introduce(comic)
-                    self.get_video_list(comic)
-                    self.process_player_param(comic)
+                    self.get_comic_introduce(comic, task_session)
+                    self.get_video_list(comic, task_session)
+                    self.process_player_param(comic, task_session)
                 except:
                     logging.warning('get comic info: %s failed.', comic.comic_id)
                 else:
                     self.db.save_comic(comic)
-                    self.processed.add(unified_tag)
+                    with self._lock:
+                        self._processed.add(unified_tag)
             page_processed += 1
+        logging.info('end task: %s(%s)', category_name, path)
+        return True
 
     def get_category(self):
         h = self._get(HOST)
@@ -68,11 +91,11 @@ class IKanFanCrawler(object):
             category[a.text] = a['href']
         return category
 
-    def get_comic_list(self, category, path):
+    def get_comic_list(self, category, path, session):
         entries = []
         next_path = False
         try:
-            h = self._get(HOST + path)
+            h = self._get(HOST + path, session)
             comics_div = h.find('div', {'id': 'contents'})
             for a in comics_div.children:
                 entry = ComicEntry()
@@ -82,7 +105,7 @@ class IKanFanCrawler(object):
                 entry.cover = a.div.img['data-original']
                 entry.tag = a.p.text
                 entry.category = category
-                logging.warning('get comic %s done.', entry.name)
+                logging.info('get comic %s done.', entry.name)
                 entries.append(entry)
             page_ul = h.find('ul', {'class': 'pagination'})
             for li in page_ul.find_all('li'):
@@ -99,21 +122,21 @@ class IKanFanCrawler(object):
             logging.warning('get comic list from %s with category %s failed', path, category)
         return entries, next_path
 
-    def get_comic_introduce(self, entry):
+    def get_comic_introduce(self, entry, session):
         url = INFO_URL.format(entry.comic_id, random.random())
-        r = requests.get(url)
+        r = session.get(url)
         obj = json.loads(r.content)
         if obj['status'] == 1:
             data = obj['data'][0]
             entry.introduce = data['content']
             entry.score = int(float(data['gold']) * 10)
 
-    def get_video_list(self, entry):
-        h = self._get(HOST + entry.page_path)
+    def get_video_list(self, entry, session):
+        h = self._get(HOST + entry.page_path, session)
         list_div = h.find('div', {'id': 'playlist'})
         for div in list_div.find_all('div', {'class': 'd-play-box'}):
             player_name = div['id']
-            logging.warning('get player list for %s', player_name)
+            logging.info('get player list for %s', player_name)
             a_list_div = div.find('div', {'class': 'd-player-list clearfix looplist'})
             entries = []
             for a in a_list_div.children:
@@ -126,22 +149,23 @@ class IKanFanCrawler(object):
                 entries.append(player_entry)
             entry.players[player_name] = entries
 
-    def process_player_param(self, entry):
+    def process_player_param(self, entry, session):
         for player_entries in entry.players.values():
             for player_entry in player_entries:
-                self.get_play_config(player_entry)
+                self.get_play_config(player_entry, session)
 
-    def get_play_config(self, player_entry):
-        h = self._get(HOST + player_entry.path)
+    def get_play_config(self, player_entry, session):
+        h = self._get(HOST + player_entry.path, session)
         play_cfg_div = h.find('div', {'class': 'fl playerbox iframe'})
         player_entry.config_str = play_cfg_div.script.text
 
-    def _get(self, url):
-        logging.warning('crawl %s', url)
-        r = self.session.get(url, headers=HEADERS)
+    def _get(self, url, session=None):
+        logging.info('crawl %s', url)
+        r = session.get(url, headers=HEADERS) if session else self.session.get(url, headers=HEADERS)
         return BeautifulSoup(r.content, 'html5lib')
 
 
 if __name__ == "__main__":
+    init_logging_config('/tmp/ikanfan.log')
     tool = IKanFanCrawler()
     tool.run()
