@@ -103,10 +103,9 @@ class ComicEntry(object):
 class ConnWrapper(object):
     def __init__(self, db):
         self._db_file = db
-        self._conn = None
+        self._conn = sqlite3.connect(self._db_file, check_same_thread=False)
 
     def __enter__(self):
-        self._conn = sqlite3.connect(self._db_file)
         return self._conn
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -114,17 +113,17 @@ class ConnWrapper(object):
             self._conn.commit()
         else:
             logging.warning('run sql failed. %s -> %s', exc_val, traceback.extract_tb(exc_tb))
-        self._conn.close()
         return True
 
 
 class SqliteWrapper(object):
     def __init__(self, db_file):
         self._db_file = db_file
+        self._wrapper = ConnWrapper(self._db_file)
 
     @property
     def connection(self):
-        return ConnWrapper(self._db_file)
+        return self._wrapper
 
     def insert(self, sql, *args):
         ret = DB_ERR

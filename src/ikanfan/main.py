@@ -1,6 +1,9 @@
 # coding: utf-8
 
 import os
+import time
+import datetime
+import signal
 import pickle
 import json
 import random
@@ -9,7 +12,7 @@ import requests
 import threading
 from bs4 import BeautifulSoup
 from model import ComicEntry, PlayerEntry, IKanFanDB
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 
 HOST = "http://www.ikanfan.com"
 INFO_URL = "http://www.ikanfan.com/index.php?s=home-search-pop&q={}&timestamp={}"
@@ -38,21 +41,21 @@ class IKanFanCrawler(object):
     def __init__(self):
         self.comics = []
         self.session = requests.session()
-        self.db = IKanFanDB('data/ikanfan.db')
+        self.db = IKanFanDB('data/ikanfan.{}.db'.format(datetime.datetime.now().strftime('%Y%m%d%H%M%S')))
         self._processed = set()
         self._lock = threading.Lock()
-        self._progress_file = 'data/progress.txt'
+        self._progress_file = 'data/ikanfan.his'
+        self.stop = False
 
     def run(self):
         if os.path.exists(self._progress_file):
             with open(self._progress_file, 'rb') as f:
                 self._processed = pickle.loads(f.read())
+                logging.info('processed info: %s', self._processed)
         category_list = self.get_category()
-        thread_pool = ThreadPoolExecutor(len(category_list))
-        futures = [thread_pool.submit(
-            self.do_category_task, category_name, path) for category_name, path in category_list.items()]
-        results = [r.result() for r in as_completed(futures)]
-        logging.info(results)
+        with ThreadPoolExecutor(len(category_list)) as thread_pool:
+            for category_name, path in category_list.items():
+                thread_pool.submit(self.do_category_task, category_name, path)
         with open(self._progress_file, 'wb') as f:
             f.write(pickle.dumps(self._processed))
 
@@ -60,13 +63,16 @@ class IKanFanCrawler(object):
         logging.info('start task: %s(%s)', category_name, path)
         page_processed = 0
         task_session = requests.session()
-        while page_processed < self.PAGE_WANTED and path:
+        while page_processed < self.PAGE_WANTED and path and not self.stop:
             unified_tag = '{}-{}'.format(category_name.encode('utf-8'), path)
             if unified_tag in self._processed:
                 logging.warning('%s processed, jump!', unified_tag)
                 continue
             comics, path = self.get_comic_list(category_name, path, task_session)
             for comic in comics:
+                if self.stop:
+                    logging.info('end task: %s(%s)', category_name, path)
+                    return True
                 try:
                     self.get_comic_introduce(comic, task_session)
                     self.get_video_list(comic, task_session)
@@ -75,8 +81,8 @@ class IKanFanCrawler(object):
                     logging.warning('get comic info: %s failed.', comic.comic_id)
                 else:
                     self.db.save_comic(comic)
-                    with self._lock:
-                        self._processed.add(unified_tag)
+            with self._lock:
+                self._processed.add(unified_tag)
             page_processed += 1
         logging.info('end task: %s(%s)', category_name, path)
         return True
@@ -159,7 +165,16 @@ class IKanFanCrawler(object):
         play_cfg_div = h.find('div', {'class': 'fl playerbox iframe'})
         player_entry.config_str = play_cfg_div.script.text
 
+    def shutdown(self):
+        if not self.stop:
+            print('prepare stop.')
+            self.stop = True
+        else:
+            print('stopping...')
+
     def _get(self, url, session=None):
+        if self.stop:
+            raise RuntimeError('crawler already stopped.')
         logging.info('crawl %s', url)
         r = session.get(url, headers=HEADERS) if session else self.session.get(url, headers=HEADERS)
         return BeautifulSoup(r.content, 'html5lib')
@@ -168,4 +183,6 @@ class IKanFanCrawler(object):
 if __name__ == "__main__":
     init_logging_config('/tmp/ikanfan.log')
     tool = IKanFanCrawler()
+    signal.signal(signal.SIGINT, lambda sig, frame: tool.shutdown())
+    print 'start crawler, you can press Ctrl + c  stop it.'
     tool.run()
