@@ -1,2 +1,5 @@
 requests
 PyExecJS
+futures
+beautifulsoup4
+html5lib
