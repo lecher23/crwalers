@@ -1,5 +1,6 @@
 # coding: utf-8
 
+import re
 import json
 import random
 import logging
@@ -28,13 +29,15 @@ class IKanFanCrawler(object):
         category_list = self.get_category()
         for category_name, path in category_list.items():
             for i in range(self.PAGE_WANTED):
-                comics = self.get_comic_list(category_name, path, i)
+                comics, path = self.get_comic_list(category_name, path)
                 for comic in comics:
                     self.get_comic_introduce(comic)
                     self.get_video_list(comic)
                     self.process_player_param(comic)
                     self.db.save_comic(comic)
-                self.comics.extend(comics)
+                # self.comics.extend(comics)
+                if not path:
+                    break
 
     def get_category(self):
         h = self._get(HOST)
@@ -46,10 +49,7 @@ class IKanFanCrawler(object):
             category[a.text] = a['href']
         return category
 
-    def get_comic_list(self, category, path, page_idx):
-        if page_idx:
-            tmp = path.rfind('.')
-            path = path[:tmp] + str(page_idx + 1) + path[tmp:]
+    def get_comic_list(self, category, path):
         h = self._get(HOST + path)
         comics_div = h.find('div', {'id': 'contents'})
         entries = []
@@ -63,7 +63,19 @@ class IKanFanCrawler(object):
             entry.category = category
             logging.warning('get comic %s done.', entry.name)
             entries.append(entry)
-        return entries
+        page_ul = h.find('ul', {'class': 'pagination'})
+        next_path = False
+        for li in page_ul.find_all('li'):
+            if 'active' in li.get('class', []):
+                next_path = True
+                continue
+            if next_path:
+                a = getattr(li, 'a', None)
+                next_path = None
+                if a and a.text.isdigit():
+                    next_path = li.a['href']
+                break
+        return entries, next_path
 
     def get_comic_introduce(self, entry):
         url = INFO_URL.format(entry.comic_id, random.random())
