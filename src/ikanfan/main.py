@@ -34,26 +34,29 @@ class IKanFanCrawler(object):
                 self.processed = pickle.loads(f.read())
         category_list = self.get_category()
         for category_name, path in category_list.items():
-            for i in range(self.PAGE_WANTED):
-                unified_tag = '{}-{}'.format(category_name, i)
-                if unified_tag in self.processed:
-                    logging.warning('%s processed, jump!', unified_tag)
-                    continue
-                comics, path = self.get_comic_list(category_name, path)
-                for comic in comics:
-                    try:
-                        self.get_comic_introduce(comic)
-                        self.get_video_list(comic)
-                        self.process_player_param(comic)
-                    except:
-                        logging.warning('get comic info: %s failed.', comic.comic_id)
-                    else:
-                        self.db.save_comic(comic)
-                        self.processed.add(unified_tag)
-                if not path:
-                    break
+            self.do_category_task(category_name, path)
         with open(self._progress_file, 'wb') as f:
             f.write(pickle.dumps(self.processed))
+
+    def do_category_task(self, category_name, path):
+        page_processed = 0
+        while page_processed < self.PAGE_WANTED and path:
+            unified_tag = '{}-{}'.format(category_name, path)
+            if unified_tag in self.processed:
+                logging.warning('%s processed, jump!', unified_tag)
+                continue
+            comics, path = self.get_comic_list(category_name, path)
+            for comic in comics:
+                try:
+                    self.get_comic_introduce(comic)
+                    self.get_video_list(comic)
+                    self.process_player_param(comic)
+                except:
+                    logging.warning('get comic info: %s failed.', comic.comic_id)
+                else:
+                    self.db.save_comic(comic)
+                    self.processed.add(unified_tag)
+            page_processed += 1
 
     def get_category(self):
         h = self._get(HOST)
