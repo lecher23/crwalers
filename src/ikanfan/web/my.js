@@ -1,49 +1,67 @@
-noLogin = 'yes';
+var noLogin = 'yes';
+var ckplayer = 0;
+var Sid='0';
+var isOpen = 0;
+var myhref = 'http://m.ikanfan.com/ac/33557/0-9.html'
+console.log('gogogog9');
+
 function checkcookie() {
+console.log('1');
+
     return document.cookie.indexOf("auth=") >= 0 ? !0 : !1
 }
 function Play(a, b) {
+console.log('2');
+// a: pv, b: playname
     var c = !1;
-    html = "", a.indexOf("@@") > 0 && (data = a.split("@@"), b = data[1], a = data[0], c = "free" === data[2] ? !0 : !1), -1 != a.indexOf(".html") || -1 != a.indexOf(".shtml") || -1 != a.indexOf(".htm") ? "47ks" === b ? (localStorage.ckplayer = 1, html = Player.jiexiUrl(Player.jxUrl(a, b, c, NextWebPage, Sid), 495)) : "flvsp" === b ? (localStorage.ckplayer = 1, html = Player.jiexiUrl(Player.jxUrl(a, b, c, NextWebPage, Sid), 495)) : "full" === b ? (localStorage.ckplayer = 1, html = Player.jiexiUrl(a, 495)) : (localStorage.ckplayer = 0, Player.HTML(a)) : -1 != a.indexOf(".mp4") ? (localStorage.ckplayer = 0, Player.H5(a)) : (playStyle = (Player.isMobile() ? !0 : checkcookie() ? !0 : !1) || c || "ck" === data[2] || -1 != window.location.search.indexOf("99496.com") || "play" === noLogin || "acku" === b || "sina" === b || "letvsaas" === b || "mmsid" === b || "huya" === b || "mgtv" === b || "qqmtv" === b || "ppbox" === b || "kankan" === b || "toutiao" === b || "weibo" === b || "miaopai" === b || "56" === b || "1905" === b || "17173" === b || "meipai" === b || "kuaishou" === b || "file" === b || "bilibilick" === b || "kuvod" === b || 2 === a.split(",").length && "tudou" === b ? !0 : !1, "bilibili" === b || 1 === parseInt(data[2]) || "vip" === noLogin || "acfun" === b ? Player.isJump(a, b) : playStyle && 1 !== parseInt(data[2]) && "vip" != noLogin ? (localStorage.ckplayer = 1, html = Player.jiexiUrl(Player.jxUrl(a, b, c, NextWebPage, Sid), 495)) : Player.isJump(a, b)), html && $(".playerbox").html(html), Player.isMobile() || ($(".play-box").height(parseInt(localStorage.ckplayer) ? h - 40 : h), listHeight())
+    html = "", a.indexOf("@@") > 0 && (data = a.split("@@"), b = data[1], a = data[0], c = "free" === data[2] ? !0 : !1), -1 != a.indexOf(".html") || -1 != a.indexOf(".shtml") || -1 != a.indexOf(".htm") ? "47ks" === b ? (ckplayer = 1, html = Player.jiexiUrl(Player.jxUrl(a, b, c, NextWebPage, Sid), 495)) : "flvsp" === b ? (ckplayer = 1, html = Player.jiexiUrl(Player.jxUrl(a, b, c, NextWebPage, Sid), 495)) : "full" === b ? (ckplayer = 1, html = Player.jiexiUrl(a, 495)) : (ckplayer = 0, Player.HTML(a)) : -1 != a.indexOf(".mp4") ? (ckplayer = 0, Player.H5(a)) : (playStyle = (Player.isMobile() ? !0 : checkcookie() ? !0 : !1) || c || "ck" === data[2] || -1 != window.location.search.indexOf("99496.com") || "play" === noLogin || "acku" === b || "sina" === b || "letvsaas" === b || "mmsid" === b || "huya" === b || "mgtv" === b || "qqmtv" === b || "ppbox" === b || "kankan" === b || "toutiao" === b || "weibo" === b || "miaopai" === b || "56" === b || "1905" === b || "17173" === b || "meipai" === b || "kuaishou" === b || "file" === b || "bilibilick" === b || "kuvod" === b || 2 === a.split(",").length && "tudou" === b ? !0 : !1, "bilibili" === b || 1 === parseInt(data[2]) || "vip" === noLogin || "acfun" === b ? Player.isJump(a, b) : playStyle && 1 !== parseInt(data[2]) && "vip" != noLogin ? (ckplayer = 1, html = Player.jiexiUrl(Player.jxUrl(a, b, c, NextWebPage, Sid), 495)) : Player.isJump(a, b)), html && $(".playerbox").html(html), Player.isMobile() || ($(".play-box").height(parseInt(ckplayer) ? h - 40 : h), listHeight())
 }
 function listHeight() {
-    pv.indexOf(".mp4") > 0 ? $(".tab-main").height(h - 142) : parseInt(localStorage.ckplayer) ? $(".tab-main").height(h - 150) : $(".tab-main").height(h - 110)
+console.log('3');
+    pv.indexOf(".mp4") > 0 ? $(".tab-main").height(h - 142) : parseInt(ckplayer) ? $(".tab-main").height(h - 150) : $(".tab-main").height(h - 110)
 }
 function closefull() {
+console.log('4');
     $(".play-box").removeClass("full"), $(".webexit").remove(), $(".gbtn").show(), $("#cs_right_bottom, #ft_couplet_right, #ft_couplet_left").show(), $("body,#tudou,#tudou2,#iqiyi,#flashBox,#mp4,#ckplayer").attr("style", ""), $("#tudoudiv").css({
         overflow: "hidden",
         height: h + "px"
-    }), $(".play-box").css("height", parseInt(localStorage.ckplayer) ? h - 40 : h), listHeight(), localStorage.isOpen = 0
+    }), $(".play-box").css("height", parseInt(ckplayer) ? h - 40 : h), listHeight(), isOpen= 0
 }
 function openfull() {
+console.log('5');
     $(".play-box").addClass("full"), $(".gbtn").hide(), $("#cs_right_bottom, #ft_couplet_right, #ft_couplet_left").hide(), $("body").css("overflow", "hidden").append('<span class="webexit">退出全屏</span>'), $("#flashBox,#iqiyi,#mp4,#ckplayer").css({
         position: "absolute",
         height: "100%",
         "z-index": 99
-    }), $("#tudoudiv,.play-box").attr("style", ""), listHeight(), localStorage.isOpen = 1
+    }), $("#tudoudiv,.play-box").attr("style", ""), listHeight(), isOpen= 1
 }
 function closefull() {
+console.log('6');
     $(".play-box").removeClass("full"), $(".webexit").remove(), $(".gbtn").show(), $("#cs_right_bottom, #ft_couplet_right, #ft_couplet_left").show(), $("body,#tudou,#tudou2,#iqiyi,#flashBox,#mp4,#ckplayer").attr("style", ""), $("#tudoudiv").css({
         overflow: "hidden",
         height: h + "px"
-    }), $(".play-box").css("height", parseInt(localStorage.ckplayer) ? h - 40 : h), listHeight(), localStorage.isOpen = 0
+    }), $(".play-box").css("height", parseInt(ckplayer) ? h - 40 : h), listHeight(), isOpen= 0
 }
 function openfull() {
+console.log('7');
     $(".play-box").addClass("full"), $(".gbtn").hide(), $("#cs_right_bottom, #ft_couplet_right, #ft_couplet_left").hide(), $("body").css("overflow", "hidden").append('<span class="webexit">退出全屏</span>'), $("#flashBox,#iqiyi,#mp4,#ckplayer").css({
         position: "absolute",
         height: "100%",
         "z-index": 99
-    }), $("#tudoudiv,.play-box").attr("style", ""), listHeight(), localStorage.isOpen = 1
+    }), $("#tudoudiv,.play-box").attr("style", ""), listHeight(), isOpen= 1
 }
 function listHeight() {
-    pv.indexOf(".mp4") > 0 ? $(".tab-main").height(h - 142) : parseInt(localStorage.ckplayer) ? $(".tab-main").height(h - 150) : $(".tab-main").height(h - 110)
+console.log('8');
+    pv.indexOf(".mp4") > 0 ? $(".tab-main").height(h - 142) : parseInt(ckplayer) ? $(".tab-main").height(h - 150) : $(".tab-main").height(h - 110)
 }
 var Player, html = "", purl = "", pvars = "", data = [], vid = "", h = 535, pv = playConfig.pv,
     playname = playConfig.playname, playJx = playConfig.ckUrl, NextWebPage = playConfig.NextWebPage;
-localStorage.ckplayer = 0, Player = {
+ckplayer = 0, Player = {
     isMobile: function () {
+console.log('9');
         var a = navigator.userAgent, b = a.match(/(iPad).*OS\s([\d_]+)/), c = !b && a.match(/(iPhone\sOS)\s([\d_]+)/),
             d = a.match(/(Android)\s+([\d.]+)/), e = c || d;
+        console.log(a);
         return e ? !0 : !1
     }, ck: function (a, b, c) {
         return c || "tudou" === a ? "https://api.flvsp.com/?type=" + a + "&vid=" + b : "flvsp" === a ? "https://api.flvsp.com/?url=" + b : "47ks" === a ? "https://api.47ks.com/webcloud/?v=&url=" + b : playJx + a + "&vid=" + b
@@ -120,9 +138,9 @@ localStorage.ckplayer = 0, Player = {
     }, ykUrl: function (a) {
         return "http://player.youku.com/embed/" + a + "?client_id=08fa721d0f5abf37&autoplay=true"
     }, jiexiUrl: function (a, b) {
-        return html = Player.isMobile() ? '<iframe class="playheight" style="height: ' + (-1 != window.location.href.indexOf("article") ? "19.333rem" : "3.6rem") + '" src="' + a + '" frameborder="0" scrolling=no allowfullscreen id="ckplayer"></iframe>' : '<iframe src="' + a + '" width="100%" height="' + b + '" frameborder="0" scrolling=no allowfullscreen id="ckplayer"></iframe>'
+        return html = Player.isMobile() ? '<iframe class="playheight" style="height: ' + (-1 != myhref.indexOf("article") ? "19.333rem" : "3.6rem") + '" src="' + a + '" frameborder="0" scrolling=no allowfullscreen id="ckplayer"></iframe>' : '<iframe src="' + a + '" width="100%" height="' + b + '" frameborder="0" scrolling=no allowfullscreen id="ckplayer"></iframe>'
     }, jxUrl: function (a, b, c, d, e) {
-        return jiexiUrl = Player.rePlayUrl(a, b, c) + (-1 != Player.rePlayUrl(a, b, c).indexOf("flvsp") ? "&next=" : "&nextPage=") + (1 === parseInt(e) ? "0" !== d ? window.location.origin + d : "" : "") + "&hd=3&userlink=" + window.location.href
+        return jiexiUrl = Player.rePlayUrl(a, b, c) + (-1 != Player.rePlayUrl(a, b, c).indexOf("flvsp") ? "&next=" : "&nextPage=") + (1 === parseInt(e) ? "0" !== d ? window.location.origin + d : "" : "") + "&hd=3&userlink=" + myhref
     }, tdUrl: function (a) {
         this.isMobile() ? purl = "http://www.tudou.com/programs/view/html5embed.action?type=0&code=" + a + "&lcode=&resourceId=0_06_05_99" : html = '<embed width="100%" height="100%" id="youku" src="http://www.tudou.com/v/' + a + '/&withRecommendList=false&videoClickNavigate=false&withSearchBar=false&withRecommendList=false/v.swf&totalTime=1&autoPlay=true" wmode="transparent" flashvars="" allowfullscreen="true" type="application/x-shockwave-flash">'
     }, iframe: function (a) {
@@ -157,15 +175,19 @@ localStorage.ckplayer = 0, Player = {
         var b, c;
         -1 != a.indexOf("ab") ? (data = a.split("ab"), b = data[1].split(","), vid = 2 === b.length ? b[0] + "_" + b[1] : data[1]) : (data = a.split(","), c = data.length, vid = 2 == c ? data[0] + "_" + data[1] : a), this.isMobile() ? (purl = "http://m.acfun.cn/v/?" + (-1 != a.indexOf("ab") ? "ab" : "ac") + "=" + vid, this.HTML(purl)) : (purl = "http://www.acfun.cn/v/" + (-1 != a.indexOf("ab") ? "ab" : "ac") + vid, this.HTML(purl))
     }
-}, playname && "" != playname && pv && "" != pv ? Play(pv, playname) : window.location.href = window.location.origin, Player.isMobile() || ($(document).on("click", ".webexit,.websize,.webfullbtn", function () {
+}, playname && "" != playname && pv && "" != pv ? Play(pv, playname) : myhref = window.location.origin, Player.isMobile() || ($(document).on("click", ".webexit,.websize,.webfullbtn", function () {
+console.log('gogogog3')
     $(".play-box").hasClass("full") ? closefull() : openfull()
 }), $(document).on("dblclick", ".playbg", function () {
+console.log('gogogog2')
     $(".play-box").hasClass("full") ? closefull() : openfull()
 }), $(document).keydown(function (a) {
+console.log('gogogog1')
     var b = a.keyCode ? a.keyCode : a.which;
     (27 == b || 96 == b) && closefull()
 }), $(function () {
-    -1 != window.location.href.indexOf("/ac/") && 1 === parseInt(localStorage.isOpen) && openfull(), listHeight();
+console.log('gogogog0')
+    -1 != myhref.indexOf("/ac/") && 1 === parseInt(isOpen) && openfull(), listHeight();
     var a = null;
     $(".play-box").hover(function () {
         clearTimeout(a), $(".webexit").show()
