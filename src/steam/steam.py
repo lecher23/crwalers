@@ -11,7 +11,12 @@ class SteamOnlineNumber(object):
 
     def run(self, head_n):
         r = requests.get(self.page_url)
-        html = BeautifulSoup(r.content, 'html5lib')
+        game_stats = self.do(r.content)
+        for name, current, top in game_stats[:head_n]:
+            print u"{:45}: 当前 {}, 峰值 {}".format(name, current, top)
+
+    def do(self, content):
+        html = BeautifulSoup(content, 'html5lib')
         h2 = html.find("h2", {"class": "pageheader"})
         update_time = h2.span.text
         print self.parse_time(update_time)
@@ -31,14 +36,13 @@ class SteamOnlineNumber(object):
                     item[i] = a.text
             if item[3]:
                 game_stats.append((item[3], self.convert_num(item[0]), self.convert_num(item[1])))
-        for name, current, top in game_stats[:head_n]:
-            print "{:45}: 当前 {}, 峰值 {}".format(name.encode('utf-8'), current, top)
+        return game_stats
 
     def convert_num(self, raw):
         raw = int(raw.replace(',', ''))
         wan = raw / 10000
         suffix = (raw % 10000) / 100
-        return '{:3}.{:<2}万'.format(wan, suffix)
+        return u'{:3}.{:<2}万'.format(wan, suffix)
 
     def parse_time(self, src):
         try:
@@ -51,5 +55,4 @@ class SteamOnlineNumber(object):
 
 
 if __name__ == '__main__':
-    head_n = int(raw_input('前多少的游戏?'))
-    SteamOnlineNumber().run(head_n)
+    SteamOnlineNumber().run(int(raw_input('前多少的游戏?')))
