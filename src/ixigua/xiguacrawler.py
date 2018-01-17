@@ -8,6 +8,9 @@ import traceback
 import execjs
 import json
 import requests
+from model import XiguaVideo, Base
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 '''
 本爬虫的目标为西瓜(www.ixigua.com)主页的视频获取,
@@ -15,8 +18,15 @@ import requests
 '''
 
 FAKE_HEADER = {
-    'user-agent': 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) '
-                  'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.84 Mobile Safari / 537.36'
+    'User-Agent': 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) '
+                  'AppleWebKit/537.36 (KHTML, like Gecko) '
+                  'Chrome/63.0.3239.132 Mobile '
+                  'Safari/537.36',
+    'Cookie': 'ga=GA1.2.823218264.1513223558; '
+              'UM_distinctid=16053271a2c859-004ee0b19e4a99-1e291c08-1fa400-16053271a2de9c; '
+              'tt_webid=6499645204017006093; _gid=GA1.2.1699261817.1516155589; '
+              'csrftoken=51196fbec3ee4e394fda74b587b6b6d7; '
+              '_ba=BA0.2-20171214-51225-RZ5Kc2AUchxxHtIgLAMo'
 }
 
 JS_CODE = '''function encodeURL(pathname, randomStr) {
@@ -33,54 +43,15 @@ JS_CODE = '''function encodeURL(pathname, randomStr) {
 }'''
 
 
-class VideoInf(object):
-    def __init__(self):
-        self.title = None
-        self.description = None
-        self.tag = None
-        self.author = None
-        self.video_id = None
-        self.watched_num = None
-        self.access_url = None
-        self.duration = None
-        self.cover = None
-        self.video_url = None
-
-    def __repr__(self):
-        raw = {
-            'title': self.title,
-            'desc': self.description,
-            'author': self.author,
-            'tag': self.tag,
-            'id': self.video_id,
-            'count': self.watched_num,
-            'page': self.access_url,
-            'time': self.duration,
-            'cover': self.cover,
-            'video': self.video_url
-        }
-        s = 'error'
-        try:
-            s = json.dumps(raw, ensure_ascii=False, indent=2).encode('utf-8')
-        except:
-            traceback.print_exc()
-            sys.stderr.write(repr(raw))
-        return s
-
-
 class XiGuaCrawler(object):
     Category = ['video_new', 'subv_funny', 'subv_society', 'subv_comedy', 'subv_life', 'subv_movie',
                 'subv_entertainment',
                 'subv_cute', 'subv_game', 'subv_boutique', 'subv_broaden_view']
 
     def __init__(self):
-        self.domain = 'https://www.ixigua.com'
-        self.start_url = 'https://www.ixigua.com/api/pc/feed/' \
-                         '?min_behot_time=0&category={}&utm_source=toutiao&widen=1&tadrequire=true' \
-                         '&as=479BB4B7254C150&cp=7E0AC8874BB0985'
-        self.next_url = 'https://www.ixigua.com/api/pc/feed/' \
-                        '?max_behot_time={}&category={}&utm_source=toutiao&widen=1&tadrequire=true&' \
-                        'as=479BB4B7254C150&cp=7E0AC8874BB0985'
+        self.domain = 'https://m.ixigua.com'
+        self.next_url = 'http://m.ixigua.com/list/?' \
+                        'tag={}&ac=wap&count=20&format=json_raw&as=479BB4B7254C150&cp=7E0AC8874BB0985&max_behot_time={}'
         self.safe_host = 'https://ib.365yg.com'
         self.safe_path = '/video/urls/v/1/toutiao/mp4/'
         self.ctx = execjs.compile(JS_CODE)
@@ -90,29 +61,44 @@ class XiGuaCrawler(object):
         self.existed_video_id = set()
         self.video_items = []
         self.video_num_required = 1500
+        self.page_count = 5
+
+        self.engine = create_engine(
+            'mysql+mysqldb://licheng:Cg123456@192.168.0.253:3306/downline?charset=utf8', echo=False)
+        self.sql_session = sessionmaker(bind=self.engine)()
+        Base.metadata.create_all(self.engine)
+        self.enable_db = False
+
+        self.fp = open('xg_resp.txt', 'w')
 
     def run(self):
         for item in self.Category:
             sys.stderr.write(item + '\n')
             self._run(item)
-        print crawler.video_items
-        with open('xigua.txt', 'w') as f:
-            f.write('\n'.join(self.raw_content))
+        with open('xigua.json', 'w') as f:
+            f.write(str(self.video_items))
 
     def _run(self, category):
         time.sleep(random.randint(1, 10) * 0.1)
-        r = self.session.get(self.start_url.format(category), headers=FAKE_HEADER)
+        url = self.next_url.format(category, 0)
+        sys.stderr.write(url + '\n')
+        r = self.session.get(url, headers=FAKE_HEADER)
         try:
+            start_count = len(self.video_items)
             self.raw_content.append(r.content)
+            print r.content
             obj = json.loads(r.content)
-            next_tag = obj['next']['max_behot_time']
-            self.extract_video(obj['data'], category)
-            for i in range(5):
-                next_tag, continue_run = self.go_next(next_tag, category)
-                if not continue_run or not next_tag:
+            # next_tag = obj['next']['max_behot_time']
+            next_tag = self.extract_video(obj['data'], category)
+            for i in range(self.page_count):
+                next_tag = self.go_next(next_tag, category)
+                if not next_tag:
                     break
+            end_count = len(self.video_items)
+            sys.stderr.write('%s count %s' % (category, end_count - start_count))
         except:
             traceback.print_exc()
+            self.fp.write(r.content)
 
     def go_next(self, next_tag, category):
         '''
@@ -121,48 +107,49 @@ class XiGuaCrawler(object):
         time.sleep(random.randint(1, 5) * 0.1)
         r = None
         try:
-            r = self.session.get(self.next_url.format(next_tag, category), headers=FAKE_HEADER)
+            r = self.session.get(self.next_url.format(category, next_tag), headers=FAKE_HEADER)
             self.raw_content.append(r.content)
             obj = json.loads(r.content)
-            next_tag = obj['next']['max_behot_time']
-            return next_tag, self.extract_video(obj['data'], category)
+            return self.extract_video(obj['data'], category)
         except:
             if r:
-                print r.content
+                self.fp.write(r.content + '\n')
             traceback.print_exc()
-            return None, True
+            return None
 
     def extract_video(self, data, category):
         '''
         :return: continue? True/False
         '''
+        max_behot_time = 0
         for item in data:
             if item['has_video']:
-                vi = VideoInf()
+                vi = XiguaVideo()
                 vi.title = item['title']
                 vi.description = item.get('abstract', '无')
                 vi.tag = category
                 vi.author = item['source']
                 vi.video_id = item['video_id']
-                vi.watched_num = item['video_play_count']
+                vi.comment_num = item['comment_count']
                 vi.access_url = self.domain + item['source_url']
-                vi.duration = item['video_duration_str']
-                vi.cover = item['image_url']
+                vi.duration = item['video_duration']
+                vi.cover = item['large_image_url']
                 vi.video_url = self.request_for_real_video(vi.video_id)
-                if vi.video_url.find('Expires') > 0 or vi.video_id in self.existed_video_id:
-                    sys.stderr.write("video exist.\n" if vi.video_id in self.existed_video_id else
-                                     "video url has expire time limit.\n")
+                if vi.video_id in self.existed_video_id:
+                    sys.stderr.write("video exist.\n")
                     continue
                 if not vi.video_url:
                     sys.stderr.write('cannot get url.\n')
                     continue
                 self.existed_video_id.add(vi.video_id)
                 self.video_items.append(vi)
+                self._save_item(vi)
                 sys.stderr.write(str(len(self.video_items)) + '\n')
+                max_behot_time = max(max_behot_time, item.get('behot_time', 0))
                 # if len(self.video_items) >= self.video_num_required:
                 #     sys.stderr.write('num accessed.')
                 #     return False
-        return True
+        return max_behot_time
 
     def request_for_real_video(self, video_id):
         path = self.sign_url(self.safe_path + video_id)
@@ -189,7 +176,22 @@ class XiGuaCrawler(object):
     def random_callback():
         return ''.join([chr(random.randint(ord('a'), ord('z') + 1)) for _ in range(5)])
 
+    def _save_item(self, item):
+        if not self.enable_db:
+            return
+        try:
+            self.sql_session.add(item)
+            self.sql_session.flush()
+            self.sql_session.commit()
+        except:
+            traceback.print_exc()
+            self.sql_session.rollback()
+
+    def __del__(self):
+        self.fp.close()
+
 
 if __name__ == '__main__':
     crawler = XiGuaCrawler()
     crawler.run()
+    # print crawler.request_for_real_video('3dd5aadc36d44abdb11e3cd1cc86259b')
